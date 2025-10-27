@@ -1,0 +1,15 @@
+#to get all users info
+
+import sqlite3 
+def get_all_users(): 
+     
+    conn = sqlite3.connect('user_data.db') 
+    c = conn.cursor() 
+    c.execute('SELECT * FROM users') 
+     
+    users = c.fetchall() 
+    conn.close() 
+    return users 
+all_users = get_all_users() 
+for user in all_users: 
+    print(user) 
