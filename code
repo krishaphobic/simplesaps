@@ -1,0 +1,370 @@
+import tkinter as tk
+from tkinter import simpledialog, messagebox
+from datetime import datetime, timedelta
+from PIL import Image, ImageTk
+import sqlite3
+
+
+class GardenDB:
+    location = 'data.db'
+    table_name = 'garden'
+    sqlite3.register_converter('DATETIME', sqlite3.converters['TIMESTAMP'])
+
+    def createTable(self):
+        conn = sqlite3.connect(self.location)
+        c = conn.cursor()
+        sql = f'''
+        create table if not exists {self.table_name}
+        (
+        id primary key,
+        row integer,
+        col integer,
+        plant_name TEXT,
+        last_watered timestamp
+        )
+        '''
+        c.execute(sql)
+        c.close()
+
+    def create_users_table(self):
+        try:
+            conn = sqlite3.connect('user_data.db')
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    password TEXT NOT NULL
+                )
+            ''')
+            conn.commit()
+            conn.close()
+        except sqlite3.Error as e:
+            print("Error creating users table:", e)
+
+
+    def dropTable(self):
+        conn = sqlite3.connect(self.location)
+        c = conn.cursor()
+        sql = f'drop table {self.table_name}'#name is garden, if all the grids are used then use that it clears it
+        c.execute(sql)
+        c.close()
+
+    def insert_record(self, row, col, plant_name, last_watered):
+        conn = sqlite3.connect(self.location)
+        c = conn.cursor()
+        id = row + col * 4
+        sql = f'''
+        insert or replace into {self.table_name} (id, row, col, plant_name, last_watered)
+        values (?,?,?,?,?)
+        '''
+        data_tuple = (id, row, col, plant_name, last_watered)#actual values which are coming from the window
+        c.execute(sql, data_tuple)
+        conn.commit()
+        c.close()
+
+    def print_record(self, row, col):
+        conn = sqlite3.connect(self.location, detect_types=sqlite3.PARSE_DECLTYPES)
+        c = conn.cursor()
+        id = row + col * 4
+        sql = f'select *, oid from {self.table_name} where id = {id}'
+        c.execute(sql)
+        output = c.fetchall()
+        for row in output:
+            print(row)
+        c.close()
+
+    def print_records(self):
+        conn = sqlite3.connect(self.location, detect_types=sqlite3.PARSE_DECLTYPES)
+        c = conn.cursor()
+        sql = f'select *, oid from {self.table_name}'#oid is object id, IT PRINTS THE ENTIRE GARDEN THE PLANTS IN THE POTS
+        c.execute(sql)
+        output = c.fetchall()
+        for row in output:
+            print(row)
+        c.close()
+
+    def callback(self, func):
+        conn = sqlite3.connect(self.location, detect_types=sqlite3.PARSE_DECLTYPES)
+        c = conn.cursor()
+        sql = f'select *, oid from {self.table_name}'#selects all teh rows where the flowers are added
+        c.execute(sql)
+        output = c.fetchall()#fetches all the stuff
+        for row in output:#from the outfput gets each row and gives it to function
+            func(row)
+        c.close()
+
+
+db = GardenDB()
+## clear the data
+# db.dropTable()
+db.createTable()
+
+garden = [[None] * 4 for _ in range(4)]
+
+
+def mainpage(login_root):
+    def on_button_click(row, col):
+        global garden
+        plant = garden[row][col]
+        if plant:
+            show_plant_info(plant, row, col)
+
+    def show_plant_info(plant, row, col):
+        info_window = tk.Toplevel(root)
+        info_window.title("Plant Information")
+
+        info_window.configure(bg='#86A789')
+        window_size = 300
+        info_window.geometry(f"{400}x{400}")
+
+        name_of_plant = tk.Label(info_window, text=f"Plant Name: {plant['name']}", font=("impact", 13), fg="#594545",
+                                 bg="#739072", pady=10)
+        last_watered = tk.Label(info_window,
+                                text=f"Days since last water: ({calculate_days_since_last_water(plant)} days)",
+                                font=("Georgia", 12), fg="#594545", bg="#86A789", pady=10)
+        info_label = tk.Label(info_window, text=info[plant['name']], anchor="e", font=("Georgia", 10), fg="#594545",
+                              bg="#86A789", pady=10)
+
+        name_of_plant.pack(anchor="w", padx=20)
+        last_watered.pack(anchor="w", padx=20)
+        info_label.pack(anchor="w", padx=20)
+
+        water_button = tk.Button(info_window, text="Water Plant",
+                                 command=lambda r=row, c=col: water_plant(r, c, last_watered))
+        water_button.pack(pady=10)
+
+    def init_garden(plant_name, row, col, watered_time):#adds a plant and checks what time it was wateed last. it makes a recod
+        new_plant = add_new_plant(plant_name)
+        if new_plant is not None:
+            place_plant_on_grid(new_plant, row, col, watered_time)
+
+    def add_plant():
+        plant_name = simpledialog.askstring("Select Plant", "Choose a plant for your garden (Rose, Sunflower, Tulip):")
+        new_plant = add_new_plant(plant_name)
+        if new_plant is not None:
+            place_plant(new_plant)
+
+    def add_new_plant(plant_name):
+        new_plant = None
+        plant_types = list(plant_icons.keys())
+        if plant_name and plant_name.lower() in [p.lower() for p in plant_types]:
+            plant_name = next(p for p in plant_types if p.lower() == plant_name.lower())
+            image_path = plant_icons[plant_name]
+            growth_interval_days = 3
+            new_plant = {"name": plant_name, "image_path": image_path, "growth_interval_days": growth_interval_days}
+            added = True
+        return new_plant
+
+    def place_plant_on_grid(plant, row, col, watered_time):
+        garden[row][col] = plant
+        plant['last_growth_update'] = watered_time
+        update_button_image(row, col)
+
+    def place_plant(plant):
+        global garden
+        empty_spots = [(i, j) for i in range(4) for j in range(4) if garden[i][j] is None]
+
+        if empty_spots:
+            row, col = empty_spots[0]
+            place_plant_on_grid(plant, row, col, datetime.now())
+            db.insert_record(row, col, plant['name'], plant['last_growth_update'])
+            messagebox.showinfo("Plant Added", f"{plant['name']} added to your garden!")
+
+    def update_button_image(row, col):
+        global garden
+        plant = garden[row][col]
+
+        image = Image.open(plant['image_path'])
+        image = image.resize((100, 100))
+        photo = ImageTk.PhotoImage(image)
+
+        buttons[row][col].configure(image=photo)
+        buttons[row][col].image = photo  # Keep a reference to the PhotoImage object
+
+    def water_plant(row, col, label):
+        global garden
+        if garden[row][col]:
+            plant = garden[row][col]
+            plant['last_growth_update'] = datetime.now()
+            db.insert_record(row, col, plant['name'], plant['last_growth_update'])
+            messagebox.showinfo("Water Plant", f"{garden[row][col]['name']} watered!")
+            label.configure(text=f"Days since last water: ({calculate_days_since_last_water(plant)} days)")
+
+    def calculate_days_since_last_water(plant):
+        #days_since_water = (datetime.now() - plant['last_growth_update']).seconds  --- to check whether function works
+        days_since_water = (datetime.now() - plant['last_growth_update']).days
+        return days_since_water
+
+    root = tk.Toplevel(login_root)
+    root.protocol("WM_DELETE_WINDOW", login_root.quit)
+    root.title("Virtual Garden App")
+    root.geometry("700x700")
+    root.configure(bg='#4F6F52')
+
+    for i in range(4):
+        root.grid_columnconfigure(i, weight=1)
+        root.grid_rowconfigure(i, weight=1)
+
+    plant_icons = {
+        "Rose": "rosebud.png",
+        "Sunflower": "sunflower.png",
+        "Tulip": "tulipbud.png",
+    }
+
+    info = {
+        "Rose": """Universally recognized as symbols of love
+        and romance, these delicate blooms convey emotions
+        that words often struggle to articulate. Red roses,
+        in particular, are synonymous with *passion and deep
+        affection*, making them a classic choice for
+        declarations of love. Beyond matters of the heart,
+        roses bear cultural and historical significance,
+        adorning ceremonies, celebrations, and  memorials
+        across diverse traditions. They symbolize not only
+        love but also purity, mystique, and transformation.
+        Additionally, the different colors of roses can convey
+        a spectrum of emotions, from friendship (yellow) to
+        admiration (pink) and even sympathy (white).  Whether
+        exchanged in bouquets, used in rituals, or immortalized
+        in literature and art, roses stand as enduring symbols
+        that transcend time and language, adding a touch of
+        elegance and sentiment to the tapestry of human
+        experience.""",
+        "Tulip": """Tulips, with their vibrant hues and graceful
+        form, hold a unique significance that extends beyond their
+        aesthetic appeal. Originating from Central Asia and later
+        embraced by the Dutch during the 17th century, tulips have
+        become synonymous with diverse meanings and cultural
+        associations. In the language of flowers, tulips often
+        symbolize elegance, grace, and prosperity. Their varied
+        colors carry nuanced expressions, with red tulips embodying
+        true love, while yellow tulips convey cheerfulness and
+        sunshine. White tulips, often associated with purity and
+        forgiveness, evoke a sense of innocence. In Dutch history,
+        tulips are tied to economic events like the famous "Tulip
+        Mania," reflecting both their beauty and the allure of the
+        exotic. Today, tulips remain an integral part of springtime
+        landscapes and floral arrangements, not just for their visual
+        appeal but for the subtle and diverse emotions they convey,
+        making them a cherished emblem of nature's beauty and
+        human expression.""",
+        "Sunflower": """Sunflowers, with their radiant golden petals
+        and towering stalks, hold a symbolic significance that
+        resonates across cultures. These vibrant blooms, known
+        for their ability to follow the sun across the sky, are
+        often associated with positivity, warmth, and adoration.
+        Symbolizing loyalty and longevity, sunflowers stand tall
+        and proud, reflecting the resilience and strength found
+        in the face of adversity. In many cultures, they are
+        emblematic of the sun itself, representing life, energy,
+        and the cyclical nature of  existence. Snflowers have
+        also been linked to spiritual beliefs, embodying qualities
+        of enlightenment and spiritual growth. The seeds of
+        sunflowers, abundant and nutritious, contribute to their
+        association with fertility and abundance. Beyond their
+        ornamental value sunflowers have become a powerful
+        emblem of hope and optimism, inspiring art, literature,
+        and human connection with the vibrant energy of a sun-
+        kissed field in full bloom."""
+    }
+
+    buttons = [[None] * 4 for _ in range(4)]
+
+    for i in range(4):
+        for j in range(4):
+            button = tk.Button(root, text="", command=lambda row=i, col=j: on_button_click(row, col), relief=tk.GROOVE)
+            button.grid(row=i, column=j, padx=5, pady=5, sticky="nsew")
+            buttons[i][j] = button
+
+    add_plant_button = tk.Button(root, text="Add Plant", command=add_plant, bg='#D2E3C8', fg='#006400',
+                                 relief=tk.RAISED)
+    add_plant_button.grid(row=4, column=0, pady=10, padx=10, sticky="ew")
+
+    root.grid_rowconfigure(4, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+    db.callback(lambda row: init_garden(row[3], row[1], row[2], row[4]))#init garden is initiallized garden
+
+
+def login():
+    username = username_entry.get()
+    password = password_entry.get()
+
+    if username and password:
+        conn = sqlite3.connect('user_data.db')
+        c = conn.cursor()
+        c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
+        user = c.fetchone()
+        conn.close()
+
+        if user:
+            messagebox.showinfo("Login Successful", f"Welcome, {username}!")
+            mainpage(lroot)  
+        else:
+            messagebox.showerror("Login Failed", "Incorrect username or password.")
+    else:
+        messagebox.showerror("Error", "Username and password are required.")
+
+
+
+def signup():
+    username = username_entry.get()
+    password = password_entry.get()
+
+    if username and password:
+        conn = sqlite3.connect('user_data.db')
+        c = conn.cursor()
+        c.execute('SELECT * FROM users WHERE username = ?', (username,))
+        existing_user = c.fetchone()
+
+        if existing_user:
+            messagebox.showerror("Error", "Username already exists. Please choose a different username.")
+        else:
+            c.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Signup Successful", "User registered successfully!")
+    else:
+        messagebox.showerror("Error", "Username and password are required.")
+
+
+
+
+lroot = tk.Tk()
+lroot.title("Login/Signup Page")
+lroot.geometry("400x350")
+
+db.create_users_table()
+
+lroot.configure(bg='#D4E7C5')
+
+label_title = tk.Label(lroot, text="Login or Sign Up", font=("Impact", 20), fg='#163020', bg='#D4E7C5')
+label_title.pack(pady=20)
+
+label_username = tk.Label(lroot, text="Username", font=("Georgia", 12), fg='#163020', bg='#D4E7C5')
+label_username.pack()
+
+username_entry = tk.Entry(lroot, font=("Helvetica", 12))
+username_entry.pack(pady=10)
+
+label_password = tk.Label(lroot, text="Password", font=("Georgia", 12), fg='#163020', bg='#D4E7C5')
+label_password.pack()
+
+password_entry = tk.Entry(lroot, show="*", font=("Georgia", 12))
+password_entry.pack(pady=10)
+
+signup_button = tk.Button(lroot, text="Sign Up", command=signup, bg='#D4E7C5', fg='#163020', font=("Georgia", 12))
+signup_button.pack(pady=10)
+
+login_button = tk.Button(lroot, text="Login", command=login, bg='#D4E7C5', fg='#163020', font=("Georgia", 12))
+login_button.pack(pady=10)
+
+var = tk.StringVar()
+radio_signup = tk.Radiobutton(lroot, text="Sign Up", variable=var, value="signup", font=("Georgia", 12), bg='#D4E7C5')
+radio_signup.pack(anchor='w')
+radio_login = tk.Radiobutton(lroot, text="Login", variable=var, value="login", font=("Georgia", 12), bg='#D4E7C5')
+radio_login.pack(anchor='w')
+
+tk.mainloop()
+
+db.print_records()
