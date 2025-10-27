@@ -1,0 +1,31 @@
+Simplesaps is an innovative computer project that seamlessly combines the virtual and physical worlds, offering users a unique gardening experience. Upon signing up, users are introduced to their own virtual garden where they can cultivate and care for digital representations of their chosen plants. The project not only provides a visual grid for users to arrange and grow their virtual garden but also integrates real-life gardening activities to create a connection between the digital and physical world. 
+Key features : 
+1. Simplesaps allows users to actively engage with their virtual plants by incorporating interactive features. 
+2. Users can water their digital plants by pressing a button, simulating the act of nurturing and caring for their virtual greenery. 
+3. Our project enables users to monitor the growth and well-being of their virtual plants over time. creating a sense of accomplishment as they witness their digital garden flourish 
+4. It gives them information which helps enhance their knowledge about the benefits of their chosen plant.
+
+SYSTEM REQUIREMENTS: 
+Hardware requirement: 
+⌗ Windows 10 or higher, macOS 
+⌗ disk space : >3GB 
+Software requirement: 
+⌗ python 3.11 or higher 
+⌗ sqlite 
+
+USER MANUAL:
+step1- sign up and enter a password 
+step2-login 
+(a given page with a grid will be shown on your page) 
+step3- press teh add plant button on the bottom left corner of the screen step4- enter the plant of your choice from the given options 
+step5- press on the plant  
+(information on your plant along with a water button will appear) step6- press on the water button to restart the timer of when you last watered your plat step7-YOU’RE DONE!! 
+enjoy and have fun!
+
+Limitations: 
+> The app doesn’t allow the addition of more than 16 plant squares. 
+> You can not dictate the way your plant grows as it automatically updates after a few days. i.e. it does not die if you overwater / under water. 
+> the range for selection of flowers is limited
+> the images update every 3 days, the update hasn't been personalized for each flower type as yet.
+
+
